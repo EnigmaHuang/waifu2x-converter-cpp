@@ -52,6 +52,22 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 	if (nCPUThreads <= nOutputPlanes)
 		nJob = nCPUThreads;
 
+    
+    cv::Size wSize  = weights[0].size();
+    int wWidth      = wSize.width;
+    int wHeight     = wSize.height;
+    cv::Size ioSize = inputPlanes[0].size();
+    int ioWidth     = ioSize.width;
+    int ioHeight    = ioSize.height;
+    
+    std::cout << "    IOSize = [" << ioWidth << ", " << ioHeight << "], ";
+    std::cout << "wSize = [" << wWidth << ", " << wHeight << "]" << std::endl;
+    std::cout << "    nInputPlanes = " << nInputPlanes << ", nOutputPlanes = " << nOutputPlanes << std::endl;
+    
+    double Gflops   = 2.0 * (double)(ioWidth * ioHeight) * (double)(wWidth * wHeight) * (double)(nOutputPlanes * nInputPlanes);
+    
+    double st = omp_get_wtime();
+    
 	// filter job issuing
 	std::vector<std::thread> workerThreads;
 	int worksPerThread = nOutputPlanes / nJob;
@@ -78,6 +94,10 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 	for (auto& th : workerThreads) {
 		th.join();
 	}
+    
+    double et = omp_get_wtime();
+    Gflops /= (et - st) * 1e9;
+    std::cout << "    GFlops = " << Gflops << std::endl;
 
 	return true;
 }

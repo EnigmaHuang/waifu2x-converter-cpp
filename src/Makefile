@@ -5,11 +5,12 @@
 EXENAME = waifu2x-cpu
 OPENCV_PATH = /home/enigma/opencv-3.1.0-gcc
 
-CC        = g++
+#`pkg-config --cflags --libs opencv`
 GCCFLAGS  = -O2 -std=c++11 -fopenmp -march=native -I../include -I$(OPENCV_PATH)/include -L$(OPENCV_PATH)/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs -lopencv_features2d 
-#`pkg-config --cflags --libs opencv` 
-#ICCFLAGS  = -O2 -std=c++11 -openmp -xHost -I../include `pkg-config --cflags --libs opencv` 
-CFLAGS = $(GCCFLAGS)
+ICCFLAGS  = -O2 -std=c++11 -openmp -xHost -I../include -I$(OPENCV_PATH)/include -L$(OPENCV_PATH)/lib -lopencv_core -lopencv_imgproc -lopencv_imgcodecs -lopencv_features2d 
+
+CC     = icpc
+CFLAGS = $(ICCFLAGS)
 
 CCSRCS  = $(wildcard *.cpp)
 OBJS    = $(CCSRCS:.cpp=.o)
