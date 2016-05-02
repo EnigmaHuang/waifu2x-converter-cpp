@@ -12,6 +12,7 @@
 // #include <iostream> in modelHandler.hpp
 #include <fstream>
 #include <thread>
+#include <omp.h>
 
 namespace w2xc {
 
@@ -40,6 +41,16 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 	}
 
 	int nJob = modelUtility::getInstance().getNumberOfJobs();
+
+	// use all the cpu threads
+    int nCPUThreads;
+	#pragma omp parallel
+	{
+		#pragma omp master
+		nCPUThreads = omp_get_num_threads();
+	}
+	if (nCPUThreads <= nOutputPlanes)
+		nJob = nCPUThreads;
 
 	// filter job issuing
 	std::vector<std::thread> workerThreads;
@@ -150,8 +161,11 @@ bool Model::filterWorker(std::vector<cv::Mat> &inputPlanes,
 		cv::max(uIntermediatePlane, 0.0, moreThanZero);
 		cv::min(uIntermediatePlane, 0.0, lessThanZero);
 		cv::scaleAdd(lessThanZero, 0.1, moreThanZero, uIntermediatePlane);
-		outputPlane = uIntermediatePlane.getMat(cv::ACCESS_READ);
-		outputPlane.copyTo(outputPlanes[opIndex]);
+		// The following 2 lines will cause "Assertion failed (u->refcount == 0)" with OpenCV 3.1.0,
+		//outputPlane = uIntermediatePlane.getMat(cv::ACCESS_READ);
+		//outputPlane.copyTo(outputPlanes[opIndex]);
+		// according to https://github.com/Itseez/opencv/issues/6451 , it should be 
+		uIntermediatePlane.copyTo(outputPlanes[opIndex]);
 
 	} // for index
 

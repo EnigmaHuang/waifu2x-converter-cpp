@@ -24,13 +24,13 @@ There is only for-windows binary, now. Sorry.
 
  * Ubuntu
  * Mac OS X?
- * Windows
+ * Windows?
  
 (This program probably can be built under MacOSX, because OpenCV and other libraries support OS X)
 
 ### Libraries
 
- * [OpenCV](http://opencv.org/)(C++, version 3.0.0 rc1)
+ * [OpenCV](http://opencv.org/)
 
 This programs also depends on libraries shown below, but these are already included in this repository.
 *CUDA Support in OpenCV is optional, since not required. (in version 1.0.0, CUDA Support is not used.)*
@@ -40,11 +40,9 @@ This programs also depends on libraries shown below, but these are already inclu
 
 ## How to build
 
-### for Ubuntu
+### for Linux
 
-Sorry, under construction...
-
-These are hints for building :
+These are hints for building by WL-Amigo:
 
  * I recommend to install OpenCV from sources. (build instruction is found [here](http://opencv.org/quickstart.html))
  * include path : `include/` `(/path/to/opencv/installed/directory)/include`
@@ -53,7 +51,7 @@ These are hints for building :
  * libraries to link : `opencv_core` `opencv_imgproc` `opencv_imgcodecs` `opencv_features2d`
  * standard of C++ : `c++11`
 
-
+I created a Makefile for this project, using OpenCV 3.1.0. The Makefile is in src/ directory.
 
 ## Usage
 
