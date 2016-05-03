@@ -64,7 +64,7 @@ static bool convertWithModelsBasic(cv::Mat &inputPlane, cv::Mat &outputPlane,
 	inputPlanes->push_back(inputPlane);
 
 	for (int index = 0; index < models.size(); index++) {
-		std::cout << "Iteration #" << (index + 1) << "..." << std::endl;
+		std::cout << "Iteration #" << (index + 1) << " : ";
 		if (!models[index]->filter(*inputPlanes, *outputPlanes)) {
 			std::exit(-1);
 		}

@@ -14,6 +14,8 @@
 #include <thread>
 #include <omp.h>
 
+#include "myConvKernel.hpp"
+
 namespace w2xc {
 
 int Model::getNInputPlanes() {
@@ -40,8 +42,32 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 		outputPlanes.push_back(cv::Mat::zeros(inputPlanes[0].size(), CV_32FC1));
 	}
 
-	int nJob = modelUtility::getInstance().getNumberOfJobs();
-
+    cv::Size wSize  = weights[0].size();
+    int wWidth      = wSize.width;
+    int wHeight     = wSize.height;
+    cv::Size ioSize = inputPlanes[0].size();
+    int ioWidth     = ioSize.width;
+    int ioHeight    = ioSize.height;
+    
+    std::cout << " block size = [" << ioWidth << ", " << ioHeight << "], ";
+    std::cout << nInputPlanes << " -> " << nOutputPlanes << "\t";
+    
+    double Gflops   = 2.0 * (double)(ioWidth * ioHeight) * (double)(wWidth * wHeight) * (double)(nOutputPlanes * nInputPlanes);
+    
+    double st = omp_get_wtime();
+    
+    copyInMatrices(
+        nInputPlanes, nOutputPlanes, 
+        wWidth, wHeight, weights,
+        ioWidth, ioHeight, inputPlanes,
+        biases
+    );
+    
+    myConvKernel();
+    copyOutResults(outputPlanes);    
+    
+    /*
+    int nJob = modelUtility::getInstance().getNumberOfJobs();
 	// use all the cpu threads
     int nCPUThreads;
 	#pragma omp parallel
@@ -51,22 +77,6 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 	}
 	if (nCPUThreads <= nOutputPlanes)
 		nJob = nCPUThreads;
-
-    
-    cv::Size wSize  = weights[0].size();
-    int wWidth      = wSize.width;
-    int wHeight     = wSize.height;
-    cv::Size ioSize = inputPlanes[0].size();
-    int ioWidth     = ioSize.width;
-    int ioHeight    = ioSize.height;
-    
-    std::cout << "    IOSize = [" << ioWidth << ", " << ioHeight << "], ";
-    std::cout << "wSize = [" << wWidth << ", " << wHeight << "]" << std::endl;
-    std::cout << "    nInputPlanes = " << nInputPlanes << ", nOutputPlanes = " << nOutputPlanes << std::endl;
-    
-    double Gflops   = 2.0 * (double)(ioWidth * ioHeight) * (double)(wWidth * wHeight) * (double)(nOutputPlanes * nInputPlanes);
-    
-    double st = omp_get_wtime();
     
 	// filter job issuing
 	std::vector<std::thread> workerThreads;
@@ -95,9 +105,13 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 		th.join();
 	}
     
+    float *optr = outputPlanes[0].ptr<float>(0);
+    printf("outputPlane[0] shoule be %f %f %f", optr[0], optr[1], optr[2]);
+    */
+    
     double et = omp_get_wtime();
     Gflops /= (et - st) * 1e9;
-    std::cout << "    GFlops = " << Gflops << std::endl;
+    std::cout << ", filter GFlops = " << Gflops << std::endl;
 
 	return true;
 }

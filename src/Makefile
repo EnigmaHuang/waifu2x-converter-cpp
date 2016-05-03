@@ -21,6 +21,7 @@ all : build
 
 $(EXENAME): $(OBJS) 
 	$(CC) $(CFLAGS) -o $(EXENAME) $(OBJS)
+	cp $(EXENAME) ../
 
 %.o: %.cpp  
 	$(CC) $(CFLAGS) -c $^
