@@ -29,6 +29,7 @@ int Model::getNOutputPlanes() {
 bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 		std::vector<cv::Mat> &outputPlanes) {
 
+    /*
 	if (inputPlanes.size() != nInputPlanes) {
 		std::cerr << "Error : Model-filter : \n"
 				"number of input planes mismatch." << std::endl;
@@ -36,12 +37,11 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
 				<< nInputPlanes << std::endl;
 		return false;
 	}
-
+    */
 	outputPlanes.clear();
-	for (int i = 0; i < nOutputPlanes; i++) {
-		outputPlanes.push_back(cv::Mat::zeros(inputPlanes[0].size(), CV_32FC1));
-	}
-
+	outputPlanes.push_back(cv::Mat::zeros(inputPlanes[0].size(), CV_32FC1));
+    
+    
     cv::Size wSize  = weights[0].size();
     int wWidth      = wSize.width;
     int wHeight     = wSize.height;
@@ -49,28 +49,25 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
     int ioWidth     = ioSize.width;
     int ioHeight    = ioSize.height;
     
-    std::cout << " block size = [" << ioWidth << ", " << ioHeight << "],\t";
+    std::cout << " block size = [" << ioWidth << ", " << ioHeight << "], ";
     std::cout << nInputPlanes << " -> " << nOutputPlanes << "\t";
     
-    double Gflops   = 2.0 * (double)(ioWidth * ioHeight) * (double)(wWidth * wHeight) * (double)(nOutputPlanes * nInputPlanes);
+    double Gflops   = 2.0 * (double)(ioWidth * ioHeight) * (double)(wWidth * wHeight) * (double)(nOutputPlanes * nInputPlanes) / (1e9);
     
     double st = omp_get_wtime();
     
     copyInMatrices(
         nInputPlanes, nOutputPlanes, 
-        wWidth, wHeight, weights,
-        ioWidth, ioHeight, inputPlanes,
-        biases
+        weights, biases
     );
     
     myConvKernel();
     
-    copyOutResults(outputPlanes);    
-    
     double et = omp_get_wtime();
-    Gflops /= (et - st) * 1e9;
+    addGFlops(Gflops, et - st);
+    Gflops /= (et - st);
     std::cout << ", filter GFlops = " << Gflops << std::endl;
-
+    
 	return true;
 }
 

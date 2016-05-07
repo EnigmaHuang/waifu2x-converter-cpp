@@ -8,7 +8,10 @@
  *   (ここにファイルの説明を記入)
  */
 
+#include <omp.h>
+ 
 #include "convertRoutine.hpp"
+#include "myConvKernel.hpp"
 
 namespace w2xc {
 
@@ -25,8 +28,13 @@ bool convertWithModels(cv::Mat &inputPlane, cv::Mat &outputPlane,
 	bool requireSplitting = (inputPlane.size().width * inputPlane.size().height)
 			> blockSize.width * blockSize.height * 3 / 2;
 //	requireSplitting = true;
+
+    resetTotalGFlops();
+    
+    bool ret;
+    
 	if (blockSplitting && requireSplitting) {
-		return convertWithModelsBlockSplit(inputPlane, outputPlane, models);
+		ret = convertWithModelsBlockSplit(inputPlane, outputPlane, models);
 	} else {
 		//insert padding to inputPlane
 		cv::Mat tempMat;
@@ -35,7 +43,7 @@ bool convertWithModels(cv::Mat &inputPlane, cv::Mat &outputPlane,
 		cv::copyMakeBorder(inputPlane, tempMat, nModel, nModel, nModel, nModel,
 				cv::BORDER_REPLICATE);
 
-		bool ret = convertWithModelsBasic(tempMat, outputPlane, models);
+		ret = convertWithModelsBasic(tempMat, outputPlane, models);
 
 		tempMat = outputPlane(cv::Range(nModel, outputSize.height + nModel),
 				cv::Range(nModel, outputSize.width + nModel));
@@ -44,10 +52,11 @@ bool convertWithModels(cv::Mat &inputPlane, cv::Mat &outputPlane,
 						&& tempMat.size().height == outputSize.height);
 
 		tempMat.copyTo(outputPlane);
-
-		return ret;
 	}
-
+    
+    reportTotalGFlops();
+    
+    return ret;
 }
 
 static bool convertWithModelsBasic(cv::Mat &inputPlane, cv::Mat &outputPlane,
@@ -62,7 +71,8 @@ static bool convertWithModelsBasic(cv::Mat &inputPlane, cv::Mat &outputPlane,
 
 	inputPlanes->clear();
 	inputPlanes->push_back(inputPlane);
-
+    
+    /*
 	for (int index = 0; index < models.size(); index++) {
 		std::cout << "Iteration #" << (index + 1) << " : ";
 		if (!models[index]->filter(*inputPlanes, *outputPlanes)) {
@@ -74,11 +84,46 @@ static bool convertWithModelsBasic(cv::Mat &inputPlane, cv::Mat &outputPlane,
 					new std::vector<cv::Mat>());
 		}
 	}
-
+    
 	outputPlanes->at(0).copyTo(outputPlane);
+    */
+    
+    // Well this max_nInputPlanes & max_nOutputPlanes should be 128,
+    // but this is safer
+    int max_nInputPlanes  = models[0]->getNInputPlanes();
+    int max_nOutputPlanes = models[0]->getNOutputPlanes();
+    for (int index = 1; index < models.size(); index++)
+    {
+        if (models[index]->getNInputPlanes() > max_nInputPlanes)
+            max_nInputPlanes = models[index]->getNInputPlanes();
+        if (models[index]->getNOutputPlanes() > max_nOutputPlanes)
+            max_nOutputPlanes = models[index]->getNOutputPlanes();
+    }
+    
+    cv::Size ioSize  = inputPlane.size();
+    
+    double st = omp_get_wtime();
+    
+    initLocalMem(
+        max_nInputPlanes, max_nOutputPlanes,
+        ioSize.width, ioSize.height, inputPlane,
+        3, 3
+    );
+       
+    for (int index = 0; index < models.size(); index++) 
+    {
+		std::cout << "Iteration #" << (index + 1) << " : ";
+        if (!models[index]->filter(*inputPlanes, *outputPlanes)) 
+			std::exit(-1);
+    }
+    
+    copyOutResults(*outputPlanes);
+    outputPlanes->at(0).copyTo(outputPlane);
+    
+    double et = omp_get_wtime();
+    printf("Block total time = %lf(s)\n", et - st);
 
 	return true;
-
 }
 
 static bool convertWithModelsBlockSplit(cv::Mat &inputPlane,
