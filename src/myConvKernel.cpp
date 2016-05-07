@@ -1,3 +1,7 @@
+#define BLOCK_LOW(id,p,n) ( (id)*(n) / (p) )
+#define BLOCK_HIGH(id,p,n) ( BLOCK_LOW((id)+1,p,n) - 1 )
+#define BLOCK_SIZE(id,p,n) ( BLOCK_HIGH(id,p,n) - BLOCK_LOW(id,p,n) + 1 )
+
 #include "myConvKernel.hpp"
 
 #include <stdio.h>
@@ -111,11 +115,11 @@ void copyInMatrices(
 
 void convolve3x3withPad(
     float *inputPlane, float *outputPlane, float *weightMatrix,
-    const int ioWidth, const int ioHeight, const int wWidth, const int wHeight,
-    const int paddedInWidth, const int paddedInHeight
+    const int ioWidth, const int ioHeight, const int ipY_spos, const int ipY_epos
 )
-{   
-    for (int ipY = 1; ipY < ioHeight + 1; ipY++)
+{
+    int paddedInWidth = ioWidth + 2;
+    for (int ipY = 1 + ipY_spos; ipY < 1 + ipY_epos; ipY++)
     {
         for (int ipX = 1; ipX < ioWidth + 1; ipX++)
         {
@@ -162,39 +166,53 @@ void myConvKernel()
         nCPUThreads = omp_get_num_threads();
     }
     
-    float *filterOutput_buf = (float*) _mm_malloc(sizeof(float) * outputSize * nCPUThreads, 512); 
+    float *filterOutput_buf = (float*) _mm_malloc(sizeof(float) * outputSize, 512); 
     assert(filterOutput_buf != NULL);
     
-    int semi_wWidth = wWidth / 2;
+    float *filterOutput = filterOutput_buf; 
+    memset(outputPlanes, 0, outputSize * nOutputPlanes);
     
-    #pragma omp parallel for
-    for (int opIndex = 0; opIndex < nOutputPlanes; opIndex++)
+    #pragma omp parallel 
     {
         int tid = omp_get_thread_num();
-        float *filterOutput = filterOutput_buf + outputSize * tid;    // filterOutput in modelHandler.cpp
         
-        int wMatIndex = nInputPlanes * opIndex;
-        float *outputPlane = outputPlanes + opIndex * outputSize;     // uIntermediatePlane & outputPlane in modelHandler.cpp
-        memset(outputPlane, 0, sizeof(float) * outputSize);
+        int conv_spos = BLOCK_LOW (tid, nCPUThreads, ioHeight);
+        int conv_epos = BLOCK_HIGH(tid, nCPUThreads, ioHeight) + 1;
         
-        for (int ipIndex = 0; ipIndex < nInputPlanes; ipIndex++) 
+        int vadd_spos = conv_spos * ioWidth;
+        int vadd_size = (conv_epos - conv_spos) * ioWidth;
+        
+        for (int opIndex = 0; opIndex < nOutputPlanes; opIndex++)
         {
-            float *inputPlane = inputPlanes + ipIndex * paddedInSize; // uInputPlane  in modelHandler.cpp
-            float *weightMatrix = weights + (wMatIndex++) * wSize;    // weightMatrix in modelHandler.cpp
+            float *outputPlane = outputPlanes + opIndex * outputSize;
+            #pragma omp barrier
             
-            convolve3x3withPad(
-                inputPlane, filterOutput, weightMatrix,
-                ioWidth, ioHeight, wWidth, wHeight, 
-                paddedInWidth, paddedInHeight
-            );
-            
-            addVec(outputSize, filterOutput, outputPlane);            // cv::add(uIntermediatePlane, filterOutput, uIntermediatePlane)
+            for (int ipIndex = 0; ipIndex < nInputPlanes; ipIndex++) 
+            {
+                int wMatIndex = nInputPlanes * opIndex + ipIndex;
+                float *inputPlane = inputPlanes + ipIndex * paddedInSize; 
+                float *weightMatrix = weights + wMatIndex * wSize;  
+                
+                convolve3x3withPad(
+                    inputPlane, filterOutput, weightMatrix,
+                    ioWidth, ioHeight, conv_spos, conv_epos
+                );
+                
+                addVec(vadd_size, filterOutput + vadd_spos, outputPlane + vadd_spos); 
+            }
         }
         
-        addScale(outputSize, (float)(biases[opIndex]), outputPlane);  // cv::add(uIntermediatePlane, biases[opIndex], uIntermediatePlane);
-        scaleIfLessThanX(outputSize, outputPlane, 0.0, 0.1);          // cv::scaleAdd(lessThanZero, 0.1, moreThanZero, uIntermediatePlane);
+        #pragma omp barrier
+        
+        #pragma omp for
+        for (int opIndex = 0; opIndex < nOutputPlanes; opIndex++)
+        {
+            float *outputPlane = outputPlanes + opIndex * outputSize;
+            addScale(outputSize, (float)(biases[opIndex]), outputPlane);
+            scaleIfLessThanX(outputSize, outputPlane, 0.0, 0.1);
+        }
     }
-
+    
     _mm_free(filterOutput_buf);
 }
 

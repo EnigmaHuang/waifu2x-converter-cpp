@@ -49,7 +49,7 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
     int ioWidth     = ioSize.width;
     int ioHeight    = ioSize.height;
     
-    std::cout << " block size = [" << ioWidth << ", " << ioHeight << "], ";
+    std::cout << " block size = [" << ioWidth << ", " << ioHeight << "],\t";
     std::cout << nInputPlanes << " -> " << nOutputPlanes << "\t";
     
     double Gflops   = 2.0 * (double)(ioWidth * ioHeight) * (double)(wWidth * wHeight) * (double)(nOutputPlanes * nInputPlanes);
@@ -64,50 +64,8 @@ bool Model::filter(std::vector<cv::Mat> &inputPlanes,
     );
     
     myConvKernel();
+    
     copyOutResults(outputPlanes);    
-    
-    /*
-    int nJob = modelUtility::getInstance().getNumberOfJobs();
-	// use all the cpu threads
-    int nCPUThreads;
-	#pragma omp parallel
-	{
-		#pragma omp master
-		nCPUThreads = omp_get_num_threads();
-	}
-	if (nCPUThreads <= nOutputPlanes)
-		nJob = nCPUThreads;
-    
-	// filter job issuing
-	std::vector<std::thread> workerThreads;
-	int worksPerThread = nOutputPlanes / nJob;
-	for (int idx = 0; idx < nJob; idx++) {
-		if (!(idx == (nJob - 1) && worksPerThread * nJob != nOutputPlanes)) {
-			workerThreads.push_back(
-					std::thread(&Model::filterWorker, this,
-							std::ref(inputPlanes), std::ref(weights),
-							std::ref(outputPlanes),
-							static_cast<unsigned int>(worksPerThread * idx),
-							static_cast<unsigned int>(worksPerThread)));
-		} else {
-			// worksPerThread * nJob != nOutputPlanes
-			workerThreads.push_back(
-					std::thread(&Model::filterWorker, this,
-							std::ref(inputPlanes), std::ref(weights),
-							std::ref(outputPlanes),
-							static_cast<unsigned int>(worksPerThread * idx),
-							static_cast<unsigned int>(nOutputPlanes
-									- worksPerThread * idx)));
-		}
-	}
-	// wait for finishing jobs
-	for (auto& th : workerThreads) {
-		th.join();
-	}
-    
-    float *optr = outputPlanes[0].ptr<float>(0);
-    printf("outputPlane[0] shoule be %f %f %f", optr[0], optr[1], optr[2]);
-    */
     
     double et = omp_get_wtime();
     Gflops /= (et - st) * 1e9;
